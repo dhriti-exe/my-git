@@ -1,6 +1,7 @@
 const fs = require("fs")
 const path = require("path");
 const zlib = require("zlib")
+const crypto = require("crypto");
 
 console.error("Logs from your program will appear here!");
 
@@ -12,6 +13,9 @@ switch (command) {
         break;
     case "cat-file":
         createCatFileDirectory();
+        break;
+    case "hash-object":
+        createHashObjectDirectory();
         break;
     default:
         throw new Error(`Unknown command ${command}`);
@@ -62,4 +66,42 @@ async function createCatFileDirectory() {
 
         process.stdout.write(res)
     }
+}
+
+async function createHashObjectDirectory() {
+    const flag = process.argv[3];
+    const Id = process.argv[4];
+    if (!Id) {
+        process.stdout.write(`there is no flag in it`);
+        return;
+    }
+
+    if (flag !== "-w") {
+        return;
+    }
+
+    const filepath = path.resolve(Id);
+
+    if (!fs.existsSync(Id)) {
+        console.log("File not Found")
+        return;
+    }
+
+    let content = await fs.readFileSync(Id)
+    const size = content.length;
+
+    const header = `blob ${size}\0`;
+    const blob = Buffer.concat([Buffer.from(header), content]);
+
+    const hash = crypto.createHash("sha1").update(blob).digest("hex");
+
+    const file = path.join(process.cwd(), ".git", "objects", hash.slice(0, 2))
+
+    if (!fs.existsSync(file)) {
+        fs.mkdirSync(file);
+    }
+
+    const compressedData = zlib.deflateSync(blob);
+    fs.writeFileSync(path.join(file, hash.slice(2)), compressedData);
+    process.stdout.write(hash);
 }
